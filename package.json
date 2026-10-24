@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test:scheduler": "node --experimental-strip-types scripts/test-scheduler.ts"
+    "test:scheduler": "node --experimental-strip-types scripts/test-scheduler.ts",
+    "simulate": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/simulate.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

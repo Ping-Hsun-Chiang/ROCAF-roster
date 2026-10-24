@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  addDays, checkMinimumManpower, emptyRoster, generateRoster, MIN_PER_ROLE, MIN_TOTAL, QUAL_LABEL, ROLES,
+  addDays, checkMinimumManpower, emptyRoster, generateRoster, MIN_PER_ROLE, MIN_TOTAL, QUAL_LABEL, RECOMMENDED_LEADERS, RECOMMENDED_TOTAL, ROLES,
   type Candidate, type Role, type Roster, type Violation,
 } from "@/lib/scheduler";
 import {
@@ -223,10 +223,15 @@ export default function ScheduleWizard() {
 
           {/* 即時人力儀表：讓使用者勾選時就看到是否達標 */}
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <Gauge label="可動用總人數" value={manpower.total} min={MIN_TOTAL} />
-            <Gauge label="具哨長資格" value={manpower.leaderCapable} min={MIN_PER_ROLE} />
+            <Gauge label="可動用總人數" value={manpower.total} min={MIN_TOTAL} recommended={RECOMMENDED_TOTAL} />
+            <Gauge label="具哨長資格" value={manpower.leaderCapable} min={MIN_PER_ROLE} recommended={RECOMMENDED_LEADERS} />
             <Gauge label="可任槍兵（哨長＋僅槍兵）" value={manpower.guardCapable} min={MIN_PER_ROLE} />
           </div>
+          {manpower.advisories.length > 0 && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+              {manpower.advisories.map((a) => <div key={a}>⚠ {a}</div>)}
+            </div>
+          )}
 
           {active.length === 0 && !busy && (
             <p className="py-4 text-center text-sm text-stone-400">名冊中沒有在籍人員，請先到「人員名冊」新增。</p>
@@ -300,13 +305,19 @@ export default function ScheduleWizard() {
   );
 }
 
-function Gauge({ label, value, min }: { label: string; value: number; min: number }) {
-  const ok = value >= min;
+/** 綠：達建議值；黃：達最低門檻但低於建議值；紅：低於最低門檻 */
+function Gauge({ label, value, min, recommended }: { label: string; value: number; min: number; recommended?: number }) {
+  const level = value < min ? "low" : recommended !== undefined && value < recommended ? "warn" : "ok";
+  const box = { ok: "border-emerald-200 bg-emerald-50", warn: "border-amber-200 bg-amber-50", low: "border-red-200 bg-red-50" }[level];
+  const text = { ok: "text-emerald-800", warn: "text-amber-700", low: "text-red-700" }[level];
   return (
-    <div className={`rounded-lg border px-3 py-2 ${ok ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}>
+    <div className={`rounded-lg border px-3 py-2 ${box}`}>
       <div className="text-xs text-stone-600">{label}</div>
-      <div className={`text-lg font-bold tabular-nums ${ok ? "text-emerald-800" : "text-red-700"}`}>
-        {value} <span className="text-xs font-normal text-stone-500">/ 最低 {min}</span>
+      <div className={`text-lg font-bold tabular-nums ${text}`}>
+        {value}{" "}
+        <span className="text-xs font-normal text-stone-500">
+          / 最低 {min}{recommended !== undefined && `・建議 ${recommended}`}
+        </span>
       </div>
     </div>
   );

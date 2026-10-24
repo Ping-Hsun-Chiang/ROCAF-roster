@@ -100,7 +100,7 @@ export interface Violation {
 export interface GenerateOptions {
   /** 固定亂數種子，方便重現結果 */
   seed?: number;
-  /** 公平值隨機擾動幅度（單位：節/天）。差距小於此值的人會被隨機打散 */
+  /** 隨機擾動幅度（單位：節）。月累計節數差距小於此值的人會被隨機打散 */
   jitter?: number;
   /** Phase 1 回溯搜尋節點上限 */
   maxNodes?: number;
@@ -274,7 +274,7 @@ export function generateRoster(
   opts: GenerateOptions = {},
 ): GenerateResult {
   const rng = makeRng(opts.seed ?? (Date.now() ^ (Math.random() * 2 ** 31)));
-  const jitter = opts.jitter ?? 0.3;
+  const jitter = opts.jitter ?? 0.5;
   const maxNodes = opts.maxNodes ?? 50_000;
   const restarts = opts.greedyRestarts ?? 300;
 
@@ -283,9 +283,11 @@ export function generateRoster(
 
   /**
    * S1 公平性排序鍵（越小越優先）：
-   *   (當月節數 + 今日已排 + 1) / 上班天數 —— 「排了這班之後」的公平值
+   *   (當月節數 + 今日已排 + 1 + 擾動) / 上班天數 —— 「排了這班之後」的公平值
+   *       擾動以「節」為單位（預設 0.5 節）再除以上班天數，因此不論月初或月底，
+   *       「累計節數差不到半節的人」才會被隨機打散。若直接以公平值為單位加擾動，
+   *       月底上班 20 天時 0.3 的擾動等於 6 節，會嚴重破壞公平（情境模擬實測）。
    *   + 0.15 × 今日已排       —— 同一天盡量分散給不同人
-   *   + 隨機擾動
    * 若此班為灰色時段，再加上：
    *   + GRAY_WEIGHT × (當月灰色 + 今日灰色 + 1) / 上班天數   —— S2 灰色公平值
    *   + 0.5（昨天站過灰色）
@@ -298,7 +300,7 @@ export function generateRoster(
   const fairKey = (st: ConstraintState, c: Candidate, shiftIndex: number, noise: Map<string, number>) => {
     const today = st.todayCount(c.id);
     const workDays = Math.max(c.workDays, 1);
-    let key = (c.shiftCount + today + 1) / workDays + 0.15 * today + noise.get(c.id)!;
+    let key = (c.shiftCount + today + 1 + noise.get(c.id)!) / workDays + 0.15 * today;
     if (GRAY_SHIFTS.has(shiftIndex)) {
       key += (GRAY_WEIGHT * ((c.grayCount ?? 0) + st.todayGray(c.id) + 1)) / workDays;
       if (st.hadGray(c.id, -1)) key += 0.5;
@@ -493,6 +495,14 @@ export function validateRoster(
 
 export const MIN_TOTAL = 8;      // 24 班次 ÷ 每人每日最多 3 班
 export const MIN_PER_ROLE = 4;   // 12 班次 ÷ 3
+/**
+ * 建議人力（情境模擬得出，見 docs/simulation-report.md）：
+ *   全勤 30 天每月空缺：9 人 ≈ 37 格、10 人 ≈ 13 格、11 人 ≈ 0.3 格、12 人 = 0
+ *   哨長：4 人 ≈ 31 格、5 人 ≈ 7 格、6 人 = 0
+ * 低於建議值仍可排哨，但可能出現空缺。
+ */
+export const RECOMMENDED_TOTAL = 12;
+export const RECOMMENDED_LEADERS = 6;
 
 export interface ManpowerCheck {
   ok: boolean;
@@ -500,6 +510,8 @@ export interface ManpowerCheck {
   leaderCapable: number;
   guardCapable: number;
   messages: string[];
+  /** 達到最低門檻、但低於建議人力時的提醒（不阻擋排哨） */
+  advisories: string[];
 }
 
 export function checkMinimumManpower(people: Array<{ qualification: Qualification }>): ManpowerCheck {
@@ -512,5 +524,12 @@ export function checkMinimumManpower(people: Array<{ qualification: Qualificatio
     messages.push(`具哨長資格 ${leaderCapable} 人，最低需求 ${MIN_PER_ROLE} 人`);
   if (guardCapable < MIN_PER_ROLE)
     messages.push(`可擔任槍兵 ${guardCapable} 人，最低需求 ${MIN_PER_ROLE} 人`);
-  return { ok: messages.length === 0, total, leaderCapable, guardCapable, messages };
+  const advisories: string[] = [];
+  if (messages.length === 0) {
+    if (total < RECOMMENDED_TOTAL)
+      advisories.push(`可動用 ${total} 人，低於建議的 ${RECOMMENDED_TOTAL} 人：受歇哨與灰色時段規定限制，可能出現空缺`);
+    if (leaderCapable < RECOMMENDED_LEADERS)
+      advisories.push(`哨長 ${leaderCapable} 人，低於建議的 ${RECOMMENDED_LEADERS} 人：哨長位可能出現空缺，且哨長負擔會明顯偏重`);
+  }
+  return { ok: messages.length === 0, total, leaderCapable, guardCapable, messages, advisories };
 }
