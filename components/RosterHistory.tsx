@@ -108,7 +108,7 @@ export default function RosterHistory() {
               <div className="text-xs opacity-75">{d === today ? "今天" : d === addDays(today, 1) ? "明天" : `${dayDiff(d, today)} 天前`}</div>
               <div className="font-medium">{fmtDate(d)}</div>
               <div className={`text-xs ${on ? "text-emerald-100" : n === 0 ? "text-stone-400" : n < FULL ? "text-amber-700" : "text-emerald-700"}`}>
-                {n === 0 ? "未排" : n < FULL ? `${n}/${FULL} 有空缺` : "已排"}
+                {loading && n === 0 ? "…" : n === 0 ? "未排" : n < FULL ? `${n}/${FULL} 有空缺` : "已排"}
               </div>
             </button>
           );
