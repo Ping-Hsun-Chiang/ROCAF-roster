@@ -12,6 +12,8 @@
  *     （H0 同班不可兼任兩個位置 —— 已被 H2 涵蓋，因為同班時間差為 0）
  *   軟性限制：
  *     S1 公平值 = 當月已站哨節數 / 當月已上班天數，越低越優先，並帶隨機擾動
+ *     S2 灰色公平值 = 當月灰色節數 / 當月已上班天數 —— 排灰色班時越低越優先，
+ *        避免「總節數平均、但灰色時段總落在同幾個人身上」
  *
  * ─────────────────────────────────────────────────────────────────────
  * 時間軸：「絕對班次索引」(absolute slot)
@@ -74,6 +76,8 @@ export interface Candidate {
   workDays: number;
   /** 當月已站哨節數（不含本次勤務日） */
   shiftCount: number;
+  /** 當月已站灰色時段節數（不含本次勤務日） */
+  grayCount?: number;
 }
 
 /** 其他日期已存在的哨表紀錄（至少需包含 D-2 ~ D+2） */
@@ -159,6 +163,7 @@ interface PersonState {
   absSlots: number[];
   grayDays: Map<number, number>;
   todayCount: number;
+  todayGray: number;
 }
 
 class ConstraintState {
@@ -175,7 +180,7 @@ class ConstraintState {
   private get(id: string): PersonState {
     let p = this.people.get(id);
     if (!p) {
-      p = { absSlots: [], grayDays: new Map(), todayCount: 0 };
+      p = { absSlots: [], grayDays: new Map(), todayCount: 0, todayGray: 0 };
       this.people.set(id, p);
     }
     return p;
@@ -185,7 +190,10 @@ class ConstraintState {
     const p = this.get(id);
     p.absSlots.push(abs);
     if (GRAY_SHIFTS.has(shiftIndex)) p.grayDays.set(dayOff, (p.grayDays.get(dayOff) ?? 0) + 1);
-    if (today) p.todayCount++;
+    if (today) {
+      p.todayCount++;
+      if (GRAY_SHIFTS.has(shiftIndex)) p.todayGray++;
+    }
   }
 
   place(id: string, shiftIndex: number) {
@@ -200,6 +208,7 @@ class ConstraintState {
       const n = (p.grayDays.get(0) ?? 1) - 1;
       if (n <= 0) p.grayDays.delete(0);
       else p.grayDays.set(0, n);
+      p.todayGray--;
     }
     p.todayCount--;
   }
@@ -211,6 +220,10 @@ class ConstraintState {
 
   todayCount(id: string): number {
     return this.people.get(id)?.todayCount ?? 0;
+  }
+
+  todayGray(id: string): number {
+    return this.people.get(id)?.todayGray ?? 0;
   }
 
   /** H2：與此人任何已知班次的距離是否都 ≥ MIN_GAP（自動涵蓋昨天尾班 / 明天首班） */
@@ -272,15 +285,26 @@ export function generateRoster(
    * S1 公平性排序鍵（越小越優先）：
    *   (當月節數 + 今日已排 + 1) / 上班天數 —— 「排了這班之後」的公平值
    *   + 0.15 × 今日已排       —— 同一天盡量分散給不同人
-   *   + 0.5（若此班為灰色且此人昨天也站灰色）
+   *   + 隨機擾動
+   * 若此班為灰色時段，再加上：
+   *   + GRAY_WEIGHT × (當月灰色 + 今日灰色 + 1) / 上班天數   —— S2 灰色公平值
+   *   + 0.5（昨天站過灰色）
    *       —— 避免灰色連續累積：昨天+今天都灰色的人，明天整天的灰色班都不能排，
    *          會讓隔天人力變緊、產生空缺。這是「為明天預留彈性」的前瞻性軟限制。
-   *   + 隨機擾動
+   *   + 0.3（前天站過灰色）
+   *       —— 避免「灰、灰、休、灰、灰…」這種完全合規、但一直輪到同一人的模式
    */
+  const GRAY_WEIGHT = 3;
   const fairKey = (st: ConstraintState, c: Candidate, shiftIndex: number, noise: Map<string, number>) => {
     const today = st.todayCount(c.id);
-    const grayStreak = GRAY_SHIFTS.has(shiftIndex) && st.hadGray(c.id, -1) ? 0.5 : 0;
-    return (c.shiftCount + today + 1) / Math.max(c.workDays, 1) + 0.15 * today + grayStreak + noise.get(c.id)!;
+    const workDays = Math.max(c.workDays, 1);
+    let key = (c.shiftCount + today + 1) / workDays + 0.15 * today + noise.get(c.id)!;
+    if (GRAY_SHIFTS.has(shiftIndex)) {
+      key += (GRAY_WEIGHT * ((c.grayCount ?? 0) + st.todayGray(c.id) + 1)) / workDays;
+      if (st.hadGray(c.id, -1)) key += 0.5;
+      if (st.hadGray(c.id, -2)) key += 0.3;
+    }
+    return key;
   };
 
   const slots: Array<{ shiftIndex: number; role: Role }> = [];

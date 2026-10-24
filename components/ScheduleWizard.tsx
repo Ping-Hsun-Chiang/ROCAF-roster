@@ -97,6 +97,7 @@ export default function ScheduleWizard() {
       id: m.id, name: m.name, qualification: m.qualification,
       workDays: st.get(m.id)?.workDays ?? 1,
       shiftCount: st.get(m.id)?.shiftCount ?? 0,
+      grayCount: st.get(m.id)?.grayCount ?? 0,
     }));
 
   /** 跑演算法（放到下一個 tick，讓「排哨中…」先畫出來） */

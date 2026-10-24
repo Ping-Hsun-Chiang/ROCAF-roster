@@ -50,7 +50,7 @@ export default function RosterEditor(p: Props) {
     }));
     return p.members
       .map((m) => {
-        const st = p.stats.get(m.id) ?? { workDays: 1, shiftCount: 0 };
+        const st = p.stats.get(m.id) ?? { workDays: 1, shiftCount: 0, grayCount: 0 };
         const shifts = today.get(m.id) ?? [];
         const total = st.shiftCount + shifts.length;
         return { m, shifts, total, workDays: st.workDays, ratio: total / Math.max(st.workDays, 1) };

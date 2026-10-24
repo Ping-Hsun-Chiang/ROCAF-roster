@@ -110,18 +110,19 @@ export default function MemberManager() {
               <th className="px-4 py-2">資格</th>
               <th className="px-4 py-2 text-right">當月上班天數</th>
               <th className="px-4 py-2 text-right">當月站哨節數</th>
+              <th className="px-4 py-2 text-right" title="00-06、12-14 時段">當月灰色節數</th>
               <th className="px-4 py-2 text-right" title="站哨節數 ÷ 上班天數，越低越優先排哨">公平值</th>
               <th className="px-4 py-2">在籍</th>
               <th className="px-4 py-2 text-right">操作</th>
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={7} className="px-4 py-6 text-center text-stone-400">載入中…</td></tr>}
+            {loading && <tr><td colSpan={8} className="px-4 py-6 text-center text-stone-400">載入中…</td></tr>}
             {!loading && members.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-6 text-center text-stone-400">尚無人員，請由上方新增。</td></tr>
+              <tr><td colSpan={8} className="px-4 py-6 text-center text-stone-400">尚無人員，請由上方新增。</td></tr>
             )}
             {members.map((m) => {
-              const st = stats.get(m.id) ?? { workDays: 0, shiftCount: 0 };
+              const st = stats.get(m.id) ?? { workDays: 0, shiftCount: 0, grayCount: 0 };
               const editing = editId === m.id;
               return (
                 <tr key={m.id} className={`border-b border-stone-100 ${m.active ? "" : "text-stone-400"}`}>
@@ -146,6 +147,7 @@ export default function MemberManager() {
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums">{st.workDays}</td>
                   <td className="px-4 py-2 text-right tabular-nums">{st.shiftCount}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{st.grayCount}</td>
                   <td className="px-4 py-2 text-right tabular-nums">
                     {st.workDays ? (st.shiftCount / st.workDays).toFixed(2) : "—"}
                   </td>

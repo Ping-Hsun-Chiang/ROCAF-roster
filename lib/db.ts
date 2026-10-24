@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { ROLES, type HistoryAssignment, type Qualification, type Role, type Roster } from "./scheduler";
+import { GRAY_SHIFTS, ROLES, addDays, type HistoryAssignment, type Qualification, type Role, type Roster } from "./scheduler";
 
 export interface Member {
   id: string;
@@ -12,6 +12,8 @@ export interface Member {
 export interface MonthStat {
   workDays: number;
   shiftCount: number;
+  /** 當月灰色時段節數 */
+  grayCount: number;
 }
 
 export interface AssignmentRow extends HistoryAssignment {
@@ -45,10 +47,22 @@ export async function deleteMember(id: string) {
 // ---------- 統計 ----------
 /** @param month 該月任一天 YYYY-MM-DD；@param excludeDate 不計入站哨節數的日期 */
 export async function monthStats(month: string, excludeDate?: string): Promise<Map<string, MonthStat>> {
-  const rows = check(
-    await supabase().rpc("member_month_stats", { p_month: month, p_exclude_date: excludeDate ?? null }),
-  ) as Array<{ member_id: string; work_days: number; shift_count: number }>;
-  return new Map(rows.map((r) => [r.member_id, { workDays: r.work_days, shiftCount: r.shift_count }]));
+  const monthStart = month.slice(0, 7) + "-01";
+  const monthEnd = addDays(addDays(monthStart, 32).slice(0, 7) + "-01", -1);
+  const [rows, assignments] = await Promise.all([
+    supabase().rpc("member_month_stats", { p_month: month, p_exclude_date: excludeDate ?? null }).then(check),
+    getAssignments(monthStart, monthEnd), // 一個月最多 31×24 = 744 筆，低於 Supabase 預設 1000 筆上限
+  ]);
+  const gray = new Map<string, number>();
+  for (const a of assignments) {
+    if (a.date !== excludeDate && GRAY_SHIFTS.has(a.shiftIndex)) gray.set(a.memberId, (gray.get(a.memberId) ?? 0) + 1);
+  }
+  return new Map(
+    (rows as Array<{ member_id: string; work_days: number; shift_count: number }>).map((r) => [
+      r.member_id,
+      { workDays: r.work_days, shiftCount: r.shift_count, grayCount: gray.get(r.member_id) ?? 0 },
+    ]),
+  );
 }
 
 // ---------- 出勤 ----------

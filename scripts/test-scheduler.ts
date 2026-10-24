@@ -15,7 +15,7 @@ function rng(seed: number) {
 
 function simulate(label: string, quals: Qualification[], days: number, offProb: number, seed: number) {
   const rand = rng(seed);
-  const people = quals.map((q, i) => ({ id: `p${i}`, name: `P${i}`, qualification: q, workDays: 0, shiftCount: 0 }));
+  const people = quals.map((q, i) => ({ id: `p${i}`, name: `P${i}`, qualification: q, workDays: 0, shiftCount: 0, grayCount: 0 }));
   const history: HistoryAssignment[] = [];
   let date = "2026-11-01";
   let incompleteDays = 0;
@@ -39,6 +39,7 @@ function simulate(label: string, quals: Qualification[], days: number, offProb: 
         if (!avail.includes(p)) throw new Error(`${date} 排到未上班的人 ${id}`);
         if (p.qualification === "guard" && role === "leader") throw new Error(`${date} 資格不符 ${id}`);
         p.shiftCount++;
+        if (GRAY_SHIFTS.has(s)) p.grayCount++;
         history.push({ date, shiftIndex: s, memberId: id });
       }
     });
@@ -65,6 +66,8 @@ function simulate(label: string, quals: Qualification[], days: number, offProb: 
   console.log(`\n[${label}] ${people.length} 人 × ${days} 天：硬性限制全數通過 ✓`);
   console.log(`  未完整天數 ${incompleteDays}（空缺共 ${blanks} 格）、人力不足跳過 ${skipped} 天`);
   console.log(`  公平值(節/天) min=${Math.min(...ratios).toFixed(3)} max=${Math.max(...ratios).toFixed(3)}`);
+  const grays = people.filter((p) => p.workDays).map((p) => p.grayCount / p.workDays);
+  console.log(`  灰色公平值(灰色節/天) min=${Math.min(...grays).toFixed(3)} max=${Math.max(...grays).toFixed(3)}`);
   console.log("  " + people.map((p) => `${p.name}:${p.shiftCount}/${p.workDays}`).join("  "));
 }
 
