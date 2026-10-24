@@ -133,6 +133,11 @@ create policy "auth all" on members          for all to authenticated using (tru
 create policy "auth all" on attendance       for all to authenticated using (true) with check (true);
 create policy "auth all" on duty_assignments for all to authenticated using (true) with check (true);
 
+-- 明確授權：只給登入者（建立專案時不勾「Automatically expose new tables」也能正常運作）
+revoke all on members, attendance, duty_assignments from anon;
+grant select, insert, update, delete on members, attendance, duty_assignments to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+
 -- 函式皆為 security invoker，本身就受上方 RLS 約束；這裡再限制只有登入者能呼叫。
 revoke execute on function member_month_stats(date, date) from public, anon;
 revoke execute on function set_attendance(date, uuid[])   from public, anon;
