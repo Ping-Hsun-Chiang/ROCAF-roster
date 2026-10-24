@@ -79,32 +79,59 @@
 
 ## 驗證與模擬
 
+所有驗證、測試與模擬都記錄在 [`docs/experiments/`](docs/experiments/)，**不論結果好壞**，
+包含被推翻的結論與已知限制。
+
 ### 情境模擬（Scenario-based simulation）
 
 [`scripts/simulate.ts`](scripts/simulate.ts) 設計了 12 種情境：標準單位、小單位、大單位、極限 8 人、
 哨長稀缺、週末大休、長假、中途報到／離營、出勤劇烈波動、固定輪休等。每個情境連續排 30 天，
-以 5 個 random seed 重複執行，再做月結算。
+以 **30 個 random seed** 重複執行，再做月結算。
 
 - 所有規定都由另一套**獨立實作**、以小時計算的 checker 重新驗證，避免「演算法自己檢查自己」。
 - 月結算偏差 = 每人「實際節數 − 應得節數」，應得 = 上班天數 × 全單位平均（節／上班天）。
 
-完整結果見 [`docs/simulation-report.md`](docs/simulation-report.md)，重點如下：
+### 以統計學支撐「公平」
 
-| 發現 | 數據 | 處理 |
+為了回答「公平是演算法的功勞，還是規定本身就會造成的」，模擬加入了**對照組（control group）**：
+只遵守硬性規定、完全隨機排人，並使用完全相同的出勤資料。
+
+| 指標 | 現行版本 | 對照組（隨機） |
 | --- | --- | --- |
-| 所有情境都沒有違規 | 12 情境 × 5 seeds，違規 0 | — |
-| Jitter 以公平值為單位時，月底會被放大 | 上班 20 天時，0.3 的擾動等於 6 節；偏差 SD 約 0.8 節、最大 2～3 節 | 改以「節」為單位，SD 降到約 0.4 節、最大約 1 節 |
-| 8 人只是必要門檻，不是充分條件 | 全勤每月空缺：9 人 ≈ 37 格、10 人 ≈ 13 格、11 人 ≈ 0.3 格、12 人 = 0 | 加入「建議人力 12 人」提醒 |
-| 哨長稀缺時，空缺必然落在哨長位 | 哨長 4 人 ≈ 31 格、5 人 ≈ 7 格、6 人 = 0；演算法從未把哨長浪費在槍兵位 | 加入「建議哨長 6 人」提醒 |
-| 灰色時段過度集中在少數人 | 50 人單位中每人每月灰色節數 0～8 節 | 加入灰色公平值後縮小為 3～6 節 |
-| 出勤人數每天差異很大時，偏差較大 | 偏差 SD 約 0.7 節、最大約 2.4 節 | 結構性限制：人少的日子每人都得多站 |
+| 月結算偏差 RMS（節） | 0.36～0.68 | 3.31～7.66 |
+| Gini coefficient | 0.003～0.016 | 0.051～0.239 |
+| Dispersion index（χ²／df，純抽籤 ≈ 1） | 0.00～0.02 | 0.33～2.58 |
+| 灰色時段偏差 RMS（節） | 0.32～0.78 | 2.52～3.25 |
 
-最慢的情境產生一天哨表約 0.16 秒，使用者幾乎感覺不到等待。
+- **Mann-Whitney U test：** 9 個情境全部 p < 0.001，偏差約為對照組的 1/10 到 1/20。
+- **Chi-square goodness-of-fit test：** 所有 run 都不拒絕「依上班天數比例分配」，沒有人被系統性多排或少排。
+- **Subgroup analysis：** 哨長的負擔比僅槍兵略高，在 3 個情境達統計顯著，但效果量 < 2%（每月約 0.6 節），
+  記錄為待觀察（[EXP-004](docs/experiments/EXP-004-statistical-validation.md)）。
+
+### 實驗紀錄摘要
+
+| 實驗 | 發現 | 處理 |
+| --- | --- | --- |
+| [EXP-001](docs/experiments/EXP-001-gray-fairness.md) | 規定之內，灰色時段仍會集中在少數人 | 加入灰色公平值：灰色偏差降為 1/3～1/6；代價是總偏差略增 ≤ 0.09 節、小單位空缺 +1 格／月 |
+| [EXP-002](docs/experiments/EXP-002-jitter-unit.md) | Jitter 以公平值為單位，月底被放大（上班 20 天時 0.3 = 6 節） | 改以「節」為單位：偏差 RMS 從約 0.85 降到約 0.45 節（p < 0.001） |
+| [EXP-003](docs/experiments/EXP-003-manpower-thresholds.md) | 8 人只是必要門檻：9 人每月約 37 格空缺、12 人為 0；哨長 6 人以上才不缺 | 加入「建議 12 人／哨長 6 人」提醒（不阻擋） |
+| [EXP-004](docs/experiments/EXP-004-statistical-validation.md) | 與對照組比較、統計檢定、消融實驗重新驗證 EXP-001／002 | 修正 EXP-001 一項過度樂觀的結論 |
+
+完整數據見 [`docs/simulation-report.md`](docs/simulation-report.md) 與
+[`docs/experiments/results/ablation.md`](docs/experiments/results/ablation.md)。
+
+### 持續驗證（CI）
+
+每次 push 到 GitHub，[GitHub Actions](.github/workflows/verify.yml) 都會自動執行
+type check、regression test、情境模擬門檻檢查（違規必須為 0、公平性指標不得超過門檻）與 production build。
+任一項未通過即標示失敗，避免公平性在修改程式時不知不覺變差。
 
 ```bash
-npm run simulate           # 全部情境，並更新 docs/simulation-report.md
-npm run simulate -- S4 S6  # 只跑指定情境
-npm run test:scheduler     # regression test
+npm run simulate                # 完整報告（30 seeds），更新 docs/simulation-report.md
+npm run simulate -- --ablation  # 消融實驗，更新 docs/experiments/results/ablation.md
+npm run simulate -- --check     # CI 門檻檢查（10 seeds）
+npm run simulate -- S4 S6       # 只跑指定情境
+npm run test:scheduler          # regression test
 ```
 
 ## 系統架構
@@ -160,11 +187,14 @@ supabase/
   schema.sql             資料表、RPC、RLS policy
   migrations/            後續的資料庫變更
 scripts/
-  simulate.ts            情境模擬與月結算
+  simulate.ts            情境模擬、月結算、CI 門檻、消融實驗
+  stats.ts               統計函式（chi-square、Gini、Mann-Whitney U、CI）
   test-scheduler.ts      regression test
 docs/
+  experiments/           實驗紀錄（EXP-001～）
   simulation-report.md   模擬報告（自動產生）
   screenshots/           介面截圖
+.github/workflows/       GitHub Actions（CI）
 ```
 
 ## 未來規劃

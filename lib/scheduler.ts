@@ -108,6 +108,16 @@ export interface GenerateOptions {
   greedyRestarts?: number;
   /** 預先鎖定的格子（人工指定），演算法不會更動 */
   locked?: Roster;
+
+  // ---- 以下僅供實驗（ablation study / 對照組）使用，網站一律用預設值 ----
+  /** 灰色公平值權重，預設 3；0 = 停用（EXP-001 之前的行為） */
+  grayWeight?: number;
+  /** 昨天、前天站過灰色的扣分，預設 [0.5, 0.3] */
+  grayRecentPenalty?: [number, number];
+  /** 擾動單位：預設 "shift"（節）；"ratio" 為 EXP-002 之前以公平值為單位的舊行為 */
+  jitterUnit?: "shift" | "ratio";
+  /** 對照組：候選人完全隨機排序，只遵守硬性規定、不考慮任何公平性 */
+  randomOrder?: boolean;
 }
 
 export interface GenerateResult {
@@ -296,17 +306,33 @@ export function generateRoster(
    *   + 0.3（前天站過灰色）
    *       —— 避免「灰、灰、休、灰、灰…」這種完全合規、但一直輪到同一人的模式
    */
-  const GRAY_WEIGHT = 3;
+  const grayWeight = opts.grayWeight ?? 3;
+  const [penalty1, penalty2] = opts.grayRecentPenalty ?? [0.5, 0.3];
   const fairKey = (st: ConstraintState, c: Candidate, shiftIndex: number, noise: Map<string, number>) => {
     const today = st.todayCount(c.id);
     const workDays = Math.max(c.workDays, 1);
-    let key = (c.shiftCount + today + 1 + noise.get(c.id)!) / workDays + 0.15 * today;
+    let key =
+      opts.jitterUnit === "ratio"
+        ? (c.shiftCount + today + 1) / workDays + 0.15 * today + noise.get(c.id)!
+        : (c.shiftCount + today + 1 + noise.get(c.id)!) / workDays + 0.15 * today;
     if (GRAY_SHIFTS.has(shiftIndex)) {
-      key += (GRAY_WEIGHT * ((c.grayCount ?? 0) + st.todayGray(c.id) + 1)) / workDays;
-      if (st.hadGray(c.id, -1)) key += 0.5;
-      if (st.hadGray(c.id, -2)) key += 0.3;
+      key += (grayWeight * ((c.grayCount ?? 0) + st.todayGray(c.id) + 1)) / workDays;
+      if (st.hadGray(c.id, -1)) key += penalty1;
+      if (st.hadGray(c.id, -2)) key += penalty2;
     }
     return key;
+  };
+
+  /** 依公平性排序候選人；對照組則每次決策都重新隨機洗牌（Fisher-Yates） */
+  const orderCandidates = (list: Candidate[], st: ConstraintState, shiftIndex: number, noise: Map<string, number>) => {
+    if (opts.randomOrder) {
+      for (let i = list.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [list[i], list[j]] = [list[j], list[i]];
+      }
+      return;
+    }
+    list.sort((a, b) => fairKey(st, a, shiftIndex, noise) - fairKey(st, b, shiftIndex, noise));
   };
 
   const slots: Array<{ shiftIndex: number; role: Role }> = [];
@@ -357,7 +383,7 @@ export function generateRoster(
       }
       const sl = remaining[bestIdx];
       const rest = remaining.filter((_, i) => i !== bestIdx);
-      bestOpts.sort((a, b) => fairKey(st, a, sl.shiftIndex, noise) - fairKey(st, b, sl.shiftIndex, noise));
+      orderCandidates(bestOpts, st, sl.shiftIndex, noise);
 
       for (const c of bestOpts) {
         roster[sl.shiftIndex][sl.role] = c.id;
@@ -396,7 +422,7 @@ export function generateRoster(
         unfilled.push({ ...sl, memberId: null, message: explainEmpty(st, candidates, sl.shiftIndex, sl.role) });
         continue;
       }
-      bestOpts.sort((a, b) => fairKey(st, a, sl.shiftIndex, noise) - fairKey(st, b, sl.shiftIndex, noise));
+      orderCandidates(bestOpts, st, sl.shiftIndex, noise);
       const c = bestOpts[0];
       roster[sl.shiftIndex][sl.role] = c.id;
       st.place(c.id, sl.shiftIndex);
