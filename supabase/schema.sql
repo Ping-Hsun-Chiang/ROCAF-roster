@@ -16,7 +16,8 @@ create extension if not exists pgcrypto;
 
 -- ---------- 資格列舉 ----------
 do $$ begin
-  create type qualification as enum ('leader', 'guard', 'both');  -- 哨長 / 槍兵 / 皆可
+  -- leader = 哨長（可兼任槍兵）；guard = 僅能擔任槍兵；both 為舊版值，已不使用
+  create type qualification as enum ('leader', 'guard', 'both');
 exception when duplicate_object then null; end $$;
 
 do $$ begin
@@ -27,7 +28,7 @@ exception when duplicate_object then null; end $$;
 create table if not exists members (
   id            uuid primary key default gen_random_uuid(),
   name          text not null,
-  qualification qualification not null default 'both',
+  qualification qualification not null default 'leader',
   active        boolean not null default true,   -- 停用（退伍/調離）但保留歷史紀錄
   note          text,
   created_at    timestamptz not null default now()

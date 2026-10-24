@@ -5,18 +5,14 @@ import { QUAL_LABEL, type Qualification } from "@/lib/scheduler";
 import { createMember, deleteMember, listMembers, monthStats, updateMember, type Member, type MonthStat } from "@/lib/db";
 import { todayLocal } from "@/lib/date";
 
-const QUALS: Qualification[] = ["leader", "guard", "both"];
-
+/** 預設為哨長（可兼槍兵），只有「僅能擔任槍兵」的人才需要特別勾選 */
 function QualPicker({ value, onChange }: { value: Qualification; onChange: (q: Qualification) => void }) {
   return (
-    <div className="inline-flex overflow-hidden rounded-md border border-stone-300">
-      {QUALS.map((q) => (
-        <button key={q} type="button" onClick={() => onChange(q)}
-          className={`px-3 py-1.5 text-sm ${value === q ? "bg-emerald-800 text-white" : "bg-white text-stone-700 hover:bg-stone-50"}`}>
-          {QUAL_LABEL[q]}
-        </button>
-      ))}
-    </div>
+    <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm">
+      <input type="checkbox" className="size-4 accent-amber-600" checked={value === "guard"}
+        onChange={(e) => onChange(e.target.checked ? "guard" : "leader")} />
+      僅能擔任槍兵
+    </label>
   );
 }
 
@@ -29,12 +25,12 @@ export default function MemberManager() {
 
   // 新增表單
   const [name, setName] = useState("");
-  const [qual, setQual] = useState<Qualification>("both");
+  const [qual, setQual] = useState<Qualification>("leader");
   const [note, setNote] = useState("");
 
   // 編輯 / 刪除狀態
   const [editId, setEditId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Pick<Member, "name" | "qualification" | "note">>({ name: "", qualification: "both", note: "" });
+  const [draft, setDraft] = useState<Pick<Member, "name" | "qualification" | "note">>({ name: "", qualification: "leader", note: "" });
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
@@ -79,7 +75,7 @@ export default function MemberManager() {
   const counts = {
     total: members.filter((m) => m.active).length,
     leader: members.filter((m) => m.active && m.qualification !== "guard").length,
-    guard: members.filter((m) => m.active && m.qualification !== "leader").length,
+    guardOnly: members.filter((m) => m.active && m.qualification === "guard").length,
   };
 
   return (
@@ -88,7 +84,7 @@ export default function MemberManager() {
         <div>
           <h1 className="text-xl font-bold">人員名冊</h1>
           <p className="text-sm text-stone-500">
-            在籍 {counts.total} 人・可任哨長 {counts.leader} 人・可任槍兵 {counts.guard} 人
+            在籍 {counts.total} 人・哨長 {counts.leader} 人・僅槍兵 {counts.guardOnly} 人
           </p>
         </div>
         <label className="text-sm text-stone-600">
@@ -143,7 +139,9 @@ export default function MemberManager() {
                     {editing ? (
                       <QualPicker value={draft.qualification} onChange={(q) => setDraft({ ...draft, qualification: q })} />
                     ) : (
-                      <span className="rounded bg-stone-100 px-2 py-0.5">{QUAL_LABEL[m.qualification]}</span>
+                      <span className={`rounded px-2 py-0.5 ${m.qualification === "guard" ? "bg-amber-100 text-amber-800" : "bg-stone-100"}`}>
+                        {QUAL_LABEL[m.qualification]}
+                      </span>
                     )}
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums">{st.workDays}</td>

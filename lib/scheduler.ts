@@ -6,7 +6,7 @@
  *   變數：一天 12 班 × 2 個位置（哨長 / 槍兵）= 24 個 slot
  *   值域：今日可動用的人員
  *   硬性限制：
- *     H1 資格吻合   哨長位 ← leader|both；槍兵位 ← guard|both
+ *     H1 資格吻合   哨長位 ← 哨長；槍兵位 ← 哨長或僅槍兵（哨長可兼任槍兵）
  *     H2 歇哨時間   站完 2 小時至少休 6 小時（含跨日）
  *     H3 灰色時段   不可連續三天被排到 00-02 / 02-04 / 04-06 / 12-14
  *     （H0 同班不可兼任兩個位置 —— 已被 H2 涵蓋，因為同班時間差為 0）
@@ -45,7 +45,8 @@
 
 // ============================== 型別 ==============================
 
-export type Qualification = "leader" | "guard" | "both";
+/** leader = 哨長（可兼任槍兵）；guard = 僅能擔任槍兵 */
+export type Qualification = "leader" | "guard";
 export type Role = "leader" | "guard";
 
 export const SHIFTS_PER_DAY = 12;
@@ -58,7 +59,7 @@ export const MIN_GAP = 4;
 export const GRAY_STREAK_LIMIT = 3;
 
 export const ROLE_LABEL: Record<Role, string> = { leader: "哨長", guard: "槍兵" };
-export const QUAL_LABEL: Record<Qualification, string> = { leader: "哨長", guard: "槍兵", both: "皆可" };
+export const QUAL_LABEL: Record<Qualification, string> = { leader: "哨長", guard: "僅槍兵" };
 
 export function shiftLabel(i: number): string {
   const p = (h: number) => String(h).padStart(2, "0");
@@ -130,8 +131,9 @@ export function addDays(date: string, n: number): string {
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 }
 
+/** 哨長兩個位置都能站；僅槍兵只能站槍兵位 */
 export function canFill(q: Qualification, role: Role): boolean {
-  return q === "both" || q === role;
+  return q !== "guard" || role === "guard";
 }
 
 /** mulberry32：小型可設種子的 PRNG */
@@ -483,8 +485,8 @@ export function checkMinimumManpower(people: Array<{ qualification: Qualificatio
   const messages: string[] = [];
   if (total < MIN_TOTAL) messages.push(`可動用總人數 ${total} 人，最低需求 ${MIN_TOTAL} 人`);
   if (leaderCapable < MIN_PER_ROLE)
-    messages.push(`具「哨長／皆可」資格 ${leaderCapable} 人，最低需求 ${MIN_PER_ROLE} 人`);
+    messages.push(`具哨長資格 ${leaderCapable} 人，最低需求 ${MIN_PER_ROLE} 人`);
   if (guardCapable < MIN_PER_ROLE)
-    messages.push(`具「槍兵／皆可」資格 ${guardCapable} 人，最低需求 ${MIN_PER_ROLE} 人`);
+    messages.push(`可擔任槍兵 ${guardCapable} 人，最低需求 ${MIN_PER_ROLE} 人`);
   return { ok: messages.length === 0, total, leaderCapable, guardCapable, messages };
 }

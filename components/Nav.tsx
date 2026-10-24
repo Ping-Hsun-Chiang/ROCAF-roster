@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 
 const LINKS = [
   { href: "/schedule", label: "每日排哨" },
+  { href: "/history", label: "哨表紀錄" },
   { href: "/members", label: "人員名冊" },
 ];
 

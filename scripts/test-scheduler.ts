@@ -37,7 +37,7 @@ function simulate(label: string, quals: Qualification[], days: number, offProb: 
         if (!id) continue;
         const p = people.find((x) => x.id === id)!;
         if (!avail.includes(p)) throw new Error(`${date} 排到未上班的人 ${id}`);
-        if (p.qualification !== "both" && p.qualification !== role) throw new Error(`${date} 資格不符 ${id}`);
+        if (p.qualification === "guard" && role === "leader") throw new Error(`${date} 資格不符 ${id}`);
         p.shiftCount++;
         history.push({ date, shiftIndex: s, memberId: id });
       }
@@ -68,8 +68,8 @@ function simulate(label: string, quals: Qualification[], days: number, offProb: 
   console.log("  " + people.map((p) => `${p.name}:${p.shiftCount}/${p.workDays}`).join("  "));
 }
 
-const mixed: Qualification[] = ["leader", "leader", "leader", "both", "both", "both", "both", "guard", "guard", "guard", "guard", "guard", "both", "guard"];
+const mixed: Qualification[] = ["leader", "leader", "leader", "leader", "leader", "leader", "leader", "guard", "guard", "guard", "guard", "guard", "leader", "guard"];
 simulate("一般人力", mixed, 30, 0.2, 1);
 simulate("一般人力-另一種子", mixed, 30, 0.2, 99);
-simulate("極限 8 人全勤", ["leader", "leader", "both", "both", "guard", "guard", "both", "both"], 30, 0, 7);
-simulate("偏緊 10 人", ["leader", "leader", "leader", "both", "guard", "guard", "guard", "guard", "both", "both"], 30, 0.1, 3);
+simulate("極限 8 人全勤", ["leader", "leader", "leader", "leader", "guard", "guard", "leader", "leader"], 30, 0, 7);
+simulate("偏緊 10 人", ["leader", "leader", "leader", "leader", "guard", "guard", "guard", "guard", "leader", "leader"], 30, 0.1, 3);

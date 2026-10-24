@@ -26,6 +26,12 @@ function rosterFromRows(rows: AssignmentRow[]): Roster {
 
 export default function ScheduleWizard() {
   const [date, setDate] = useState(() => addDays(todayLocal(), 1)); // 預設排「明天」的哨表
+
+  // 從「哨表紀錄」點「編輯」進來時帶 ?date=YYYY-MM-DD
+  useEffect(() => {
+    const d = new URLSearchParams(window.location.search).get("date");
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) setDate(d);
+  }, []);
   const [phase, setPhase] = useState<Phase>("select");
 
   const [members, setMembers] = useState<Member[]>([]);
@@ -217,8 +223,8 @@ export default function ScheduleWizard() {
           {/* 即時人力儀表：讓使用者勾選時就看到是否達標 */}
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <Gauge label="可動用總人數" value={manpower.total} min={MIN_TOTAL} />
-            <Gauge label="可任哨長（哨長＋皆可）" value={manpower.leaderCapable} min={MIN_PER_ROLE} />
-            <Gauge label="可任槍兵（槍兵＋皆可）" value={manpower.guardCapable} min={MIN_PER_ROLE} />
+            <Gauge label="具哨長資格" value={manpower.leaderCapable} min={MIN_PER_ROLE} />
+            <Gauge label="可任槍兵（哨長＋僅槍兵）" value={manpower.guardCapable} min={MIN_PER_ROLE} />
           </div>
 
           {active.length === 0 && !busy && (
@@ -281,8 +287,8 @@ export default function ScheduleWizard() {
         <p>一天 12 班 × 2 人 = 24 個班次；在「站 2 休 6」下每人每日最多 3 班，因此最低需求為：</p>
         <ul className="list-disc pl-5 text-stone-600">
           <li>可動用總人數 ≥ {MIN_TOTAL} 人</li>
-          <li>具「哨長／皆可」資格 ≥ {MIN_PER_ROLE} 人</li>
-          <li>具「槍兵／皆可」資格 ≥ {MIN_PER_ROLE} 人</li>
+          <li>具哨長資格 ≥ {MIN_PER_ROLE} 人</li>
+          <li>可擔任槍兵（哨長＋僅槍兵）≥ {MIN_PER_ROLE} 人</li>
         </ul>
         <p className="font-medium text-red-700">目前不足：</p>
         <ul className="list-disc pl-5 text-red-700">
