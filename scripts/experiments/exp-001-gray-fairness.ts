@@ -2,7 +2,8 @@
  * EXP-001 重現腳本：灰色時段公平值
  *
  *   npm run experiment -- scripts/experiments/exp-001-gray-fairness.ts [--seeds 30]
- *   → docs/experiments/results/EXP-001.md
+ *   → docs/experiments/data/exp-001/（原始數據，分析見 EXP-001-gray-fairness.ipynb）
+ *   → docs/experiments/results/EXP-001.md（摘要表格）
  *
  * 比較「移除灰色公平值」（EXP-001 之前的行為）與現行版本，情境與 EXP-001 原始方法相同：
  * 14 人（哨長 8）、20 人（哨長 10）各 20% 休假，50 人（哨長 27）30% 休假，以及人力吃緊的 10 人（哨長 6）10% 休假。
@@ -12,8 +13,8 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import {
-  aggregate, f, makePeople, progress, randomLeave, seedList, seedsArg, table,
-  V_CURRENT, V_NO_GRAY, type Agg, type Scenario,
+  aggregate, f, makePeople, PERSON_COLUMNS, personRows, progress, randomLeave, seedList, seedsArg, table,
+  V_CURRENT, V_NO_GRAY, writeData, type Agg, type CsvRow, type Scenario,
 } from "../sim-core.ts";
 import { ci95, mannWhitney, mean } from "../stats.ts";
 
@@ -40,9 +41,17 @@ function grayRange(a: Agg) {
 function main() {
   const seeds = seedList(seedsArg(process.argv.slice(2), 30));
   const rows: string[][] = [];
+  const persons: CsvRow[] = [];
+  const runs: CsvRow[] = [];
   for (const sc of CASES) {
     const before = aggregate(sc, V_NO_GRAY, seeds);
     const after = aggregate(sc, V_CURRENT, seeds);
+    for (const [variant, agg] of [[V_NO_GRAY.id, before], [V_CURRENT.id, after]] as const) {
+      agg.runs.forEach((r, i) => {
+        persons.push(...personRows(r, [sc.id, variant, seeds[i]]));
+        runs.push([sc.id, variant, seeds[i], r.gaps, r.violations.length, r.maxGray7, agg.sets[i].sdDev, agg.sets[i].sdGray]);
+      });
+    }
     const [gb, ga] = [grayRange(before), grayRange(after)];
     rows.push([
       sc.name,
@@ -66,6 +75,12 @@ function main() {
 ${table(["情境", "灰色節數（最少～最多）", "灰色 ÷ 上班天", "灰色偏差 RMS", "p", "7 日內最多灰色天", "總節數偏差 RMS", "空缺／月"], rows)}
 `;
   console.log(md);
+  writeData("exp-001", {
+    cases: [["case", "name", "desc", "n_people", "n_leaders"],
+      CASES.map((c) => [c.id, c.name, c.desc, c.people.length, c.people.filter((p) => p.qualification === "leader").length])],
+    persons: [["case", "variant", "seed", ...PERSON_COLUMNS], persons],
+    runs: [["case", "variant", "seed", "gaps", "violations", "max_gray7", "ts_rms", "ts_rms_gray"], runs],
+  });
   mkdirSync(new URL("../../docs/experiments/results/", import.meta.url), { recursive: true });
   writeFileSync(new URL("../../docs/experiments/results/EXP-001.md", import.meta.url), md);
   progress("已寫入 docs/experiments/results/EXP-001.md");

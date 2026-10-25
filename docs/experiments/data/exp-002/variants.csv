@@ -1,0 +1,5 @@
+variant,name,jitter_unit,jitter
+ratio0.3,舊版（公平值單位 0.3）,ratio,0.3
+shift1.0,1.0 節,shift,1
+shift0.5,0.5 節（現行）,shift,0.5
+shift0.2,0.2 節,shift,0.2

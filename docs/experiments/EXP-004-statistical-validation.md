@@ -21,7 +21,8 @@ EXP-001～003 只用描述統計（最小值、最大值、SD），且 seed 數�
 ## 方法
 
 - **工具：** `npm run simulate`（報告）、`npm run simulate -- --ablation`（消融實驗），**30 seeds**。
-  原始數據：`npm run export-data` → [`data/`](data/)；獨立分析：[`analysis.ipynb`](analysis.ipynb)。
+  原始數據：`npm run experiment -- scripts/experiments/exp-004-statistical-validation.ts` → [`data/exp-004/`](data/exp-004/)；
+  分析：[`EXP-004-statistical-validation.ipynb`](EXP-004-statistical-validation.ipynb)。
 - **對照組（control group）：** `randomOrder: true`，每次決策都以 Fisher-Yates 洗牌決定候選人順序，
   只遵守硬性規定。與現行版本使用**完全相同的出勤資料**（出勤由情境 seed 決定，與演算法無關）。
 - **指標與檢定：**
@@ -86,9 +87,9 @@ S3、S9、S10 的差異達統計顯著，**H3 部分不成立**：哨長的負�
   代價是總節數偏差略增（最多 0.09 節），且小單位的空缺增加約 1 格／月。
 - **EXP-002 被確認：** 所有情境都顯著改善，沒有觀察到代價。
 
-### 獨立分析 notebook（更正與補充）
+### Notebook 獨立分析（更正與補充）
 
-[`analysis.ipynb`](analysis.ipynb) 用 Python（`numpy`、`scipy`）從 [`data/`](data/) 的原始數據重算所有統計量，不使用 `stats.ts`。
+[`EXP-004-statistical-validation.ipynb`](EXP-004-statistical-validation.ipynb) 用 Python（`numpy`、`scipy`）從 [`data/exp-004/`](data/exp-004/) 的原始數據重算所有統計量，不使用 `stats.ts`。
 
 **1. 發現並修正 `stats.ts` 的 bug。** 月結算、Gini、chi-square 與 `scipy` 完全一致（差異 < $10^{-6}$），
 但 Mann-Whitney U 值在 6 組比較中不一致（最多差 8.5）。原因：數學上相等的 RMS 因浮點誤差在小數點第 15 位以後不同，

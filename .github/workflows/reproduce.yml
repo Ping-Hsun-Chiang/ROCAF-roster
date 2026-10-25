@@ -1,0 +1,65 @@
+name: Reproduce experiments
+
+# 從程式碼重新產生每個實驗的原始數據，必須與 repo 中的檔案完全相同；再執行該實驗的 notebook。
+# 只在演算法或實驗相關檔案變動時執行。
+on:
+  push:
+    branches: [main]
+    paths:
+      - lib/scheduler.ts
+      - scripts/**
+      - docs/experiments/**
+      - package-lock.json
+      - .github/workflows/reproduce.yml
+  pull_request:
+    paths:
+      - lib/scheduler.ts
+      - scripts/**
+      - docs/experiments/**
+      - package-lock.json
+      - .github/workflows/reproduce.yml
+  workflow_dispatch:
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        exp:
+          - exp-001-gray-fairness
+          - exp-002-jitter-unit
+          - exp-003-manpower-thresholds
+          - exp-004-statistical-validation
+    name: ${{ matrix.exp }}
+    env:
+      EXP: ${{ matrix.exp }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Regenerate raw data
+        run: npm run experiment -- "scripts/experiments/$EXP.ts"
+
+      - name: Output must match the committed files
+        run: |
+          ID="${EXP:0:7}"   # exp-001
+          git diff --stat --exit-code -- "docs/experiments/data/$ID" "docs/experiments/results/EXP-${ID:4:3}.md"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: docs/experiments/requirements.txt
+
+      - run: pip install -r docs/experiments/requirements.txt
+
+      - name: Execute notebook
+        run: jupyter nbconvert --to notebook --execute "docs/experiments/EXP-${EXP:4}.ipynb" --output-dir "$RUNNER_TEMP"

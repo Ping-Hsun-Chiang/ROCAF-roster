@@ -5,50 +5,60 @@
 
 ## 索引
 
-| 編號 | 標題 | 結果 | 對應 commit |
-| --- | --- | --- | --- |
-| [EXP-001](EXP-001-gray-fairness.md) | 灰色時段公平值 | ✅ 採用 | `2538f66` |
-| [EXP-002](EXP-002-jitter-unit.md) | Jitter 單位修正 | ✅ 採用 | `86ef9cc` |
-| [EXP-003](EXP-003-manpower-thresholds.md) | 建議人力門檻 | ✅ 採用（加入提醒） | `86ef9cc` |
-| [EXP-004](EXP-004-statistical-validation.md) | 以統計檢定驗證公平性（對照組） | ✅ 驗證通過，🔍 哨長負擔略高 < 2% | `510d162` |
+每個實驗都有四份材料：**紀錄**（動機、假設、結論）、**notebook**（分析過程與圖表）、**原始數據**、**產生數據的程式碼**。
+
+| 編號 | 標題 | 結果 | 紀錄 | Notebook | 原始數據 | 程式碼 |
+| --- | --- | --- | --- | --- | --- | --- |
+| EXP-001 | 灰色時段公平值 | ✅ 採用 | [md](EXP-001-gray-fairness.md) | [ipynb](EXP-001-gray-fairness.ipynb) | [data](data/exp-001/) | [ts](../../scripts/experiments/exp-001-gray-fairness.ts) |
+| EXP-002 | Jitter 單位修正 | ✅ 採用 | [md](EXP-002-jitter-unit.md) | [ipynb](EXP-002-jitter-unit.ipynb) | [data](data/exp-002/) | [ts](../../scripts/experiments/exp-002-jitter-unit.ts) |
+| EXP-003 | 建議人力門檻 | ✅ 採用（加入提醒） | [md](EXP-003-manpower-thresholds.md) | [ipynb](EXP-003-manpower-thresholds.ipynb) | [data](data/exp-003/) | [ts](../../scripts/experiments/exp-003-manpower-thresholds.ts) |
+| EXP-004 | 以統計檢定驗證公平性（對照組） | ✅ 驗證通過，🔍 哨長負擔略高 < 2% | [md](EXP-004-statistical-validation.md) | [ipynb](EXP-004-statistical-validation.ipynb) | [data](data/exp-004/) | [ts](../../scripts/experiments/exp-004-statistical-validation.ts) |
+
+建議閱讀順序：先看 **notebook**（GitHub 可直接顯示圖表）；想知道為什麼做、最後怎麼決定，再看**紀錄**。
+
+## 分工：為什麼模擬用 TypeScript、分析用 Python
+
+| 步驟 | 工具 | 理由 |
+| --- | --- | --- |
+| 產生數據 | TypeScript 腳本（[`scripts/experiments/`](../../scripts/experiments/)） | 直接使用網站上的 [`lib/scheduler.ts`](../../lib/scheduler.ts)，測的是真正上線的程式碼，而不是另寫的副本 |
+| 分析與圖表 | Python notebook（`numpy`、`scipy`、`matplotlib`） | 用另一套獨立的工具重算統計量，與 TypeScript 的結果交叉驗證 |
+| 自動檢查 | GitHub Actions | 每次修改都確認數據可重現、notebook 能正常執行 |
+
+這種「換一套工具重算」的做法曾經抓到 [`scripts/stats.ts`](../../scripts/stats.ts) 的一個 bug（見 EXP-004）。
 
 ## 重現實驗（Reproducibility）
 
-每份報告的數據都能用 repo 中的程式碼重新產生。所有亂數皆由 seed 決定，相同的程式碼在任何機器上都會得到相同的結果。
-
-| 實驗 | 程式碼 | 指令 | 輸出 |
-| --- | --- | --- | --- |
-| EXP-001 | [`exp-001-gray-fairness.ts`](../../scripts/experiments/exp-001-gray-fairness.ts) | `npm run experiment -- scripts/experiments/exp-001-gray-fairness.ts` | [`results/EXP-001.md`](results/EXP-001.md) |
-| EXP-002 | [`exp-002-jitter-unit.ts`](../../scripts/experiments/exp-002-jitter-unit.ts) | `npm run experiment -- scripts/experiments/exp-002-jitter-unit.ts` | [`results/EXP-002.md`](results/EXP-002.md) |
-| EXP-003 | [`exp-003-manpower-thresholds.ts`](../../scripts/experiments/exp-003-manpower-thresholds.ts) | `npm run experiment -- scripts/experiments/exp-003-manpower-thresholds.ts` | [`results/EXP-003.md`](results/EXP-003.md) |
-| EXP-004 | [`simulate.ts`](../../scripts/simulate.ts) | `npm run simulate`、`npm run simulate -- --ablation` | [`../simulation-report.md`](../simulation-report.md)、[`results/ablation.md`](results/ablation.md) |
-| 原始數據 | [`export-data.ts`](../../scripts/export-data.ts) | `npm run export-data` | [`data/`](data/)（CSV） |
-| 獨立分析 | [`analysis.ipynb`](analysis.ipynb) | 見 notebook 開頭 | 圖表、與 `scipy` 的交叉驗證 |
-
-所有腳本都接受 `--seeds N`（預設 30）。共用的情境定義、模擬與獨立 checker 在 [`scripts/sim-core.ts`](../../scripts/sim-core.ts)，
-統計函式在 [`scripts/stats.ts`](../../scripts/stats.ts)。
-
-### 獨立分析 notebook
-
-[`analysis.ipynb`](analysis.ipynb) 讀取 [`data/`](data/) 中每個 run、每個人的月結算原始數據，用 Python（`numpy`、`scipy`）
-**重新計算所有統計量**，不使用專案自己實作的 `stats.ts`，並與 `stats.ts` 的結果逐一比對。GitHub 可以直接顯示已執行的 notebook 與圖表。
+所有亂數皆由 seed 決定，相同的程式碼在任何機器上都會產生位元組完全相同的原始數據。
 
 ```bash
+# 1. 產生原始數據（以 EXP-001 為例；所有腳本都接受 --seeds N，預設 30）
+npm ci
+npm run experiment -- scripts/experiments/exp-001-gray-fairness.ts
+
+# 2. 執行 notebook
 python -m venv .venv
 .venv/Scripts/pip install -r docs/experiments/requirements.txt      # macOS/Linux：.venv/bin/pip
-.venv/Scripts/jupyter nbconvert --to notebook --execute --inplace docs/experiments/analysis.ipynb
+.venv/Scripts/jupyter nbconvert --to notebook --execute --inplace docs/experiments/EXP-001-gray-fairness.ipynb
 ```
+
+其他檔案：
+
+- [`nbutils.py`](nbutils.py)：notebook 共用的統計函式與圖表樣式。
+- [`results/`](results/)：各腳本輸出的摘要表格（Markdown），不需執行 notebook 即可快速查看。
+- [`../simulation-report.md`](../simulation-report.md)、[`results/ablation.md`](results/ablation.md)：`npm run simulate` 產生的完整報告。
+- [`scripts/sim-core.ts`](../../scripts/sim-core.ts)：共用的情境定義、單月模擬與獨立 checker。
 
 ### CI 自動驗證
 
-[GitHub Actions](../../.github/workflows/verify.yml) 每次 push 都會：
+[Reproduce experiments](../../.github/workflows/reproduce.yml) workflow 在演算法或實驗相關檔案變動時，平行重現四個實驗：
 
-1. 以 `npm run export-data` 重新產生原始數據，**必須與 repo 中的 CSV 完全相同**，證明數據確實來自目前的程式碼、沒有被手動修改。
-2. 執行 notebook。若 `stats.ts` 與 `scipy` 的結果不一致、或發現任何違規，notebook 中的 `assert` 會讓 CI 失敗。
+1. 重新執行腳本，輸出**必須與 repo 中的檔案完全相同**，證明數據確實來自目前的程式碼、沒有被手動修改。
+2. 執行 notebook。若重算結果與 TypeScript 不一致、或發現任何違規，notebook 中的 `assert` 會讓 CI 失敗。
 
 ## 撰寫規則
 
 1. 檔名為 `EXP-<三位數編號>-<英文短名>.md`，編號只增不減，**不刪除舊實驗**。
+   同名的 `.ipynb`、`data/exp-<編號>/` 與 `scripts/experiments/exp-<編號>-<英文短名>.ts` 一起提交。
 2. 結論被後續實驗推翻時，不修改原文，在檔案最上方加上「⚠️ 已被 EXP-xxx 取代」。
 3. 數據一律來自可重現的指令，並寫明 seed 數與 commit。
 4. 結果欄位：✅ 採用、❌ 否決、⚠️ 部分採用、🔍 僅觀察（記錄限制，未修改程式）。

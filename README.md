@@ -124,18 +124,23 @@
 
 每份實驗報告都附有產生它的程式碼，任何人都能重跑並得到相同的數字：
 
-- **重現腳本：** EXP-001～003 各有一支腳本（[`scripts/experiments/`](scripts/experiments/)），EXP-004 由 `simulate.ts` 產生。
-- **原始數據：** [`docs/experiments/data/`](docs/experiments/data/) 收錄每個 run、每個人的月結算 CSV（約 3 萬列）。
-- **獨立分析 notebook：** [`analysis.ipynb`](docs/experiments/analysis.ipynb) 以 Python（`numpy`、`scipy`）從原始數據
-  重新計算所有統計量並繪圖，與專案自己實作的 `stats.ts` 逐一比對。這個比對**抓到了 `stats.ts` 的一個 bug**
-  （浮點誤差使 Mann-Whitney U test 的 tie 判斷錯誤），已修正並記錄。
-- **CI 驗證：** 每次 push 都重新產生原始數據，必須與 repo 中的 CSV 完全相同，再執行 notebook 的所有檢查。
+| 實驗 | Notebook（分析與圖表） | 原始數據 | 程式碼 |
+| --- | --- | --- | --- |
+| EXP-001 灰色時段公平值 | [EXP-001-gray-fairness.ipynb](docs/experiments/EXP-001-gray-fairness.ipynb) | [data/exp-001](docs/experiments/data/exp-001/) | [exp-001-gray-fairness.ts](scripts/experiments/exp-001-gray-fairness.ts) |
+| EXP-002 Jitter 單位 | [EXP-002-jitter-unit.ipynb](docs/experiments/EXP-002-jitter-unit.ipynb) | [data/exp-002](docs/experiments/data/exp-002/) | [exp-002-jitter-unit.ts](scripts/experiments/exp-002-jitter-unit.ts) |
+| EXP-003 建議人力門檻 | [EXP-003-manpower-thresholds.ipynb](docs/experiments/EXP-003-manpower-thresholds.ipynb) | [data/exp-003](docs/experiments/data/exp-003/) | [exp-003-manpower-thresholds.ts](scripts/experiments/exp-003-manpower-thresholds.ts) |
+| EXP-004 統計驗證 | [EXP-004-statistical-validation.ipynb](docs/experiments/EXP-004-statistical-validation.ipynb) | [data/exp-004](docs/experiments/data/exp-004/) | [exp-004-statistical-validation.ts](scripts/experiments/exp-004-statistical-validation.ts) |
+
+- **模擬用 TypeScript：** 直接使用網站上的排哨演算法，測的是真正上線的程式碼。
+- **分析用 Python notebook：** 以 `numpy`、`scipy` 從原始數據重算所有統計量並繪圖，與 TypeScript 的結果逐一比對。
+  這個比對**抓到了 `stats.ts` 的一個 bug**（浮點誤差使 Mann-Whitney U test 的 tie 判斷錯誤），已修正並記錄。
+- **CI 驗證：** 演算法或實驗相關檔案變動時，重新產生四個實驗的原始數據，必須與 repo 中的檔案完全相同，再執行 notebook。
 
 ### 持續驗證（CI）
 
 每次 push 到 GitHub，[GitHub Actions](.github/workflows/verify.yml) 都會自動執行
-type check、regression test、情境模擬門檻檢查（違規必須為 0、公平性指標不得超過門檻）、production build，
-以及實驗重現檢查（原始數據比對、notebook 交叉驗證）。
+type check、regression test、情境模擬門檻檢查（違規必須為 0、公平性指標不得超過門檻）與 production build；
+演算法或實驗相關檔案變動時，另一個 [workflow](.github/workflows/reproduce.yml) 會重現所有實驗。
 任一項未通過即標示失敗，避免公平性在修改程式時不知不覺變差。
 
 ```bash
@@ -144,8 +149,7 @@ npm run simulate -- --ablation  # 消融實驗，更新 docs/experiments/results
 npm run simulate -- --check     # CI 門檻檢查（10 seeds）
 npm run simulate -- S4 S6       # 只跑指定情境
 npm run test:scheduler          # regression test
-npm run export-data             # 匯出原始數據到 docs/experiments/data/
-npm run experiment -- scripts/experiments/exp-001-gray-fairness.ts   # 重現單一實驗
+npm run experiment -- scripts/experiments/exp-001-gray-fairness.ts   # 重現單一實驗（原始數據 → docs/experiments/data/）
 ```
 
 ## 系統架構
@@ -203,12 +207,11 @@ supabase/
 scripts/
   sim-core.ts            情境定義、單月模擬、獨立 checker、月結算
   simulate.ts            模擬報告、CI 門檻、消融實驗
-  export-data.ts         匯出原始數據（CSV）
-  experiments/           各實驗的重現腳本
+  experiments/           各實驗產生原始數據的腳本
   stats.ts               統計函式（chi-square、Gini、Mann-Whitney U、CI）
   test-scheduler.ts      regression test
 docs/
-  experiments/           實驗紀錄（EXP-001～）、analysis.ipynb、data/（原始數據）
+  experiments/           實驗紀錄（.md）、分析 notebook（.ipynb）、原始數據（data/）
   simulation-report.md   模擬報告（自動產生）
   screenshots/           介面截圖
 .github/workflows/       GitHub Actions（CI）

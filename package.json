@@ -8,7 +8,6 @@
     "start": "next start",
     "test:scheduler": "node --experimental-strip-types scripts/test-scheduler.ts",
     "simulate": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/simulate.ts",
-    "export-data": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/export-data.ts",
     "experiment": "node --experimental-strip-types --disable-warning=ExperimentalWarning"
   },
   "dependencies": {

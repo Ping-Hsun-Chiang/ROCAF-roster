@@ -1,9 +1,10 @@
 /**
  * 模擬核心：情境定義、演算法版本、單月模擬、獨立 checker、月結算。
  *
- * 由 simulate.ts（報告／CI）、export-data.ts（原始數據）與 experiments/*.ts（各實驗重現腳本）共用。
+ * 由 simulate.ts（報告／CI）與 experiments/*.ts（各實驗的原始數據）共用。
  * 所有亂數皆由 seed 決定，相同 seed 在任何機器上都會得到相同結果。
  */
+import { mkdirSync, writeFileSync } from "node:fs";
 import {
   addDays, checkMinimumManpower, generateRoster, GRAY_SHIFTS,
   type Candidate, type GenerateOptions, type GenerateResult, type HistoryAssignment, type Qualification,
@@ -253,3 +254,28 @@ export function seedsArg(args: string[], fallback: number): number {
   const i = args.indexOf("--seeds");
   return i >= 0 ? Number(args[i + 1]) : fallback;
 }
+
+// ============================== 原始數據（CSV）輸出 ==============================
+
+export type CsvRow = Array<string | number | boolean>;
+
+const num = (x: number) => (Number.isInteger(x) ? String(x) : String(Number(x.toPrecision(12))));
+const cell = (v: string | number | boolean) =>
+  typeof v === "number" ? num(v) : typeof v === "boolean" ? String(v) : /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+
+/** 輸出 CSV 字串。數值以 12 位有效數字表示，不含執行時間等與機器有關的欄位，確保不同機器產生相同檔案 */
+export const csv = (header: string[], rows: CsvRow[]) =>
+  [header.join(","), ...rows.map((r) => r.map(cell).join(","))].join("\n") + "\n";
+
+/** 寫入 docs/experiments/data/<exp>/<name>.csv */
+export function writeData(exp: string, files: Record<string, [string[], CsvRow[]]>) {
+  const dir = new URL(`../docs/experiments/data/${exp}/`, import.meta.url);
+  mkdirSync(dir, { recursive: true });
+  for (const [name, [header, rows]] of Object.entries(files)) writeFileSync(new URL(`${name}.csv`, dir), csv(header, rows));
+  progress(`已寫入 docs/experiments/data/${exp}/（${Object.keys(files).map((n) => `${n}.csv`).join("、")}）`);
+}
+
+export const PERSON_COLUMNS = ["person", "qualification", "work_days", "shifts", "gray"];
+/** 一個 run 中每個人的月結算，前面加上識別欄位 */
+export const personRows = (r: RunResult, key: CsvRow): CsvRow[] =>
+  r.people.map((p) => [...key, p.person.id, p.person.qualification, p.workDays, p.shifts, p.gray]);

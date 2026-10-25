@@ -2,7 +2,8 @@
  * EXP-002 重現腳本：Jitter 單位修正
  *
  *   npm run experiment -- scripts/experiments/exp-002-jitter-unit.ts [--seeds 30]
- *   → docs/experiments/results/EXP-002.md
+ *   → docs/experiments/data/exp-002/（原始數據，分析見 EXP-002-jitter-unit.ipynb）
+ *   → docs/experiments/results/EXP-002.md（摘要表格）
  *
  * 比較舊版（jitter 0.3，以公平值為單位）與以「節」為單位的 1.0／0.5（現行）／0.2，
  * 情境為 8 個非結構性情境（與 EXP-002 原始方法相同，S7 當時尚未加入）。
@@ -11,7 +12,10 @@
  * = 連續兩天都有站哨的人中，隔天被排到相同班次的比例。jitter 越小，排序越固定，重複率可能越高。
  */
 import { mkdirSync, writeFileSync } from "node:fs";
-import { f, progress, runScenario, SCENARIOS, seedList, seedsArg, settle, table, type Variant } from "../sim-core.ts";
+import {
+  f, PERSON_COLUMNS, personRows, progress, runScenario, SCENARIOS, seedList, seedsArg, settle, table, writeData,
+  type CsvRow, type Variant,
+} from "../sim-core.ts";
 import { addDays } from "../../lib/scheduler.ts";
 import { ci95, mean } from "../stats.ts";
 
@@ -49,18 +53,24 @@ function runWithRepeat(sc: (typeof SCENARIOS)[number], seed: number, v: Variant)
       if ([...shifts].some((s) => p.has(s))) same++;
     }
   }
-  return { set: settle(run), repeat: both ? same / both : 0 };
+  return { run, set: settle(run), both, same, repeat: both ? same / both : 0 };
 }
 
 function main() {
   const seeds = seedList(seedsArg(process.argv.slice(2), 30));
   const devRows: string[][] = [];
   const repRows: string[][] = [];
+  const persons: CsvRow[] = [];
+  const runs: CsvRow[] = [];
   for (const sc of SCENARIOS.filter((s) => IDS.includes(s.id))) {
     const dev: string[] = [sc.id, sc.name];
     const rep: string[] = [sc.id, sc.name];
     for (const v of VARIANTS) {
       const rs = seeds.map((seed) => runWithRepeat(sc, seed, v));
+      rs.forEach((r, i) => {
+        persons.push(...personRows(r.run, [sc.id, v.id, seeds[i]]));
+        runs.push([sc.id, v.id, seeds[i], r.run.gaps, r.run.violations.length, r.both, r.same, r.set.sdDev, r.set.maxDev]);
+      });
       dev.push(`${mci(rs.map((r) => r.set.sdDev))} / ${f(mean(rs.map((r) => r.set.maxDev)), 1)}`);
       rep.push(`${f(mean(rs.map((r) => r.repeat)) * 100, 1)}%`);
     }
@@ -88,6 +98,13 @@ ${table(header, devRows)}
 ${table(header, repRows)}
 `;
   console.log(md);
+  writeData("exp-002", {
+    variants: [["variant", "name", "jitter_unit", "jitter"],
+      VARIANTS.map((v) => [v.id, v.name, v.opts.jitterUnit ?? "shift", v.opts.jitter ?? 0.5])],
+    persons: [["scenario", "variant", "seed", ...PERSON_COLUMNS], persons],
+    // repeat_pairs：連續兩天都有站哨的「人·天」數；repeat_same：其中隔天班次與前一天有重疊的數量
+    runs: [["scenario", "variant", "seed", "gaps", "violations", "repeat_pairs", "repeat_same", "ts_rms", "ts_max_dev"], runs],
+  });
   mkdirSync(new URL("../../docs/experiments/results/", import.meta.url), { recursive: true });
   writeFileSync(new URL("../../docs/experiments/results/EXP-002.md", import.meta.url), md);
   progress("已寫入 docs/experiments/results/EXP-002.md");

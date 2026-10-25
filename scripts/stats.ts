@@ -127,7 +127,7 @@ export function normCdf(z: number): number {
  * 用於比較兩組樣本（例如兩個演算法版本在 N 個 seed 下的偏差 SD）是否有顯著差異。
  *
  * 數值先四捨五入到 1e-9 再排序：數學上相等的 RMS 可能因浮點誤差在第 15 位以後不同，
- * 若不處理就不會被視為 tie，使 U 值偏差（由 analysis.ipynb 與 scipy 交叉驗證時發現）。
+ * 若不處理就不會被視為 tie，使 U 值偏差（由 EXP-004 notebook 與 scipy 交叉驗證時發現）。
  */
 export function mannWhitney(a: number[], b: number[]): { u: number; z: number; p: number } {
   const q = (v: number) => Math.round(v * 1e9) / 1e9;

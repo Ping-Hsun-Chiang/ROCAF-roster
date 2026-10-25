@@ -8,7 +8,7 @@
  *   npm run simulate -- --ablation         消融實驗：現行版本 vs 移除各項改進 → docs/experiments/results/ablation.md
  *   npm run simulate -- --seeds 50 S1 S8   指定 seed 數與情境
  *
- * 情境定義與模擬核心在 sim-core.ts；原始數據匯出見 export-data.ts，各實驗重現腳本見 experiments/。
+ * 情境定義與模擬核心在 sim-core.ts；各實驗的原始數據由 experiments/*.ts 產生。
  */
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import {
