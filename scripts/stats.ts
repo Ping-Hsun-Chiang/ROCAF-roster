@@ -125,9 +125,13 @@ export function normCdf(z: number): number {
 /**
  * Mann-Whitney U test（雙尾，normal approximation + tie correction）。
  * 用於比較兩組樣本（例如兩個演算法版本在 N 個 seed 下的偏差 SD）是否有顯著差異。
+ *
+ * 數值先四捨五入到 1e-9 再排序：數學上相等的 RMS 可能因浮點誤差在第 15 位以後不同，
+ * 若不處理就不會被視為 tie，使 U 值偏差（由 analysis.ipynb 與 scipy 交叉驗證時發現）。
  */
 export function mannWhitney(a: number[], b: number[]): { u: number; z: number; p: number } {
-  const all = [...a.map((v) => ({ v, g: 0 })), ...b.map((v) => ({ v, g: 1 }))].sort((x, y) => x.v - y.v);
+  const q = (v: number) => Math.round(v * 1e9) / 1e9;
+  const all = [...a.map((v) => ({ v: q(v), g: 0 })), ...b.map((v) => ({ v: q(v), g: 1 }))].sort((x, y) => x.v - y.v);
   const ranks = new Array<number>(all.length);
   let tieSum = 0;
   for (let i = 0; i < all.length; ) {

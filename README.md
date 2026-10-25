@@ -105,7 +105,7 @@
 
 - **Mann-Whitney U test：** 9 個情境全部 p < 0.001，偏差約為對照組的 1/10 到 1/20。
 - **Chi-square goodness-of-fit test：** 所有 run 都不拒絕「依上班天數比例分配」，沒有人被系統性多排或少排。
-- **Subgroup analysis：** 哨長的負擔比僅槍兵略高，在 3 個情境達統計顯著，但效果量 < 2%（每月約 0.6 節），
+- **Subgroup analysis：** 哨長的負擔比僅槍兵略高，以 seed 為獨立單位檢定時 8 個情境中 5 個達統計顯著，但效果量 < 2%（每月約 0.6 節），
   記錄為待觀察（[EXP-004](docs/experiments/EXP-004-statistical-validation.md)）。
 
 ### 實驗紀錄摘要
@@ -114,16 +114,28 @@
 | --- | --- | --- |
 | [EXP-001](docs/experiments/EXP-001-gray-fairness.md) | 規定之內，灰色時段仍會集中在少數人 | 加入灰色公平值：灰色偏差降為 1/3～1/6；代價是總偏差略增 ≤ 0.09 節、小單位空缺 +1 格／月 |
 | [EXP-002](docs/experiments/EXP-002-jitter-unit.md) | Jitter 以公平值為單位，月底被放大（上班 20 天時 0.3 = 6 節） | 改以「節」為單位：偏差 RMS 從約 0.85 降到約 0.45 節（p < 0.001） |
-| [EXP-003](docs/experiments/EXP-003-manpower-thresholds.md) | 8 人只是必要門檻：9 人每月約 37 格空缺、12 人為 0；哨長 6 人以上才不缺 | 加入「建議 12 人／哨長 6 人」提醒（不阻擋） |
-| [EXP-004](docs/experiments/EXP-004-statistical-validation.md) | 與對照組比較、統計檢定、消融實驗重新驗證 EXP-001／002 | 修正 EXP-001 一項過度樂觀的結論 |
+| [EXP-003](docs/experiments/EXP-003-manpower-thresholds.md) | 8 人只是必要門檻：9 人每月約 32 格空缺、12 人約 0.1 格；哨長 6 人以上才不缺 | 加入「建議 12 人／哨長 6 人」提醒（不阻擋） |
+| [EXP-004](docs/experiments/EXP-004-statistical-validation.md) | 與對照組比較、統計檢定、消融實驗重新驗證 EXP-001／002；以 notebook 獨立重算 | 修正 EXP-001 一項過度樂觀的結論；發現並修正 `stats.ts` 的 tie 判斷 bug |
 
 完整數據見 [`docs/simulation-report.md`](docs/simulation-report.md) 與
 [`docs/experiments/results/ablation.md`](docs/experiments/results/ablation.md)。
 
+### 可重現性（Reproducibility）
+
+每份實驗報告都附有產生它的程式碼，任何人都能重跑並得到相同的數字：
+
+- **重現腳本：** EXP-001～003 各有一支腳本（[`scripts/experiments/`](scripts/experiments/)），EXP-004 由 `simulate.ts` 產生。
+- **原始數據：** [`docs/experiments/data/`](docs/experiments/data/) 收錄每個 run、每個人的月結算 CSV（約 3 萬列）。
+- **獨立分析 notebook：** [`analysis.ipynb`](docs/experiments/analysis.ipynb) 以 Python（`numpy`、`scipy`）從原始數據
+  重新計算所有統計量並繪圖，與專案自己實作的 `stats.ts` 逐一比對。這個比對**抓到了 `stats.ts` 的一個 bug**
+  （浮點誤差使 Mann-Whitney U test 的 tie 判斷錯誤），已修正並記錄。
+- **CI 驗證：** 每次 push 都重新產生原始數據，必須與 repo 中的 CSV 完全相同，再執行 notebook 的所有檢查。
+
 ### 持續驗證（CI）
 
 每次 push 到 GitHub，[GitHub Actions](.github/workflows/verify.yml) 都會自動執行
-type check、regression test、情境模擬門檻檢查（違規必須為 0、公平性指標不得超過門檻）與 production build。
+type check、regression test、情境模擬門檻檢查（違規必須為 0、公平性指標不得超過門檻）、production build，
+以及實驗重現檢查（原始數據比對、notebook 交叉驗證）。
 任一項未通過即標示失敗，避免公平性在修改程式時不知不覺變差。
 
 ```bash
@@ -132,6 +144,8 @@ npm run simulate -- --ablation  # 消融實驗，更新 docs/experiments/results
 npm run simulate -- --check     # CI 門檻檢查（10 seeds）
 npm run simulate -- S4 S6       # 只跑指定情境
 npm run test:scheduler          # regression test
+npm run export-data             # 匯出原始數據到 docs/experiments/data/
+npm run experiment -- scripts/experiments/exp-001-gray-fairness.ts   # 重現單一實驗
 ```
 
 ## 系統架構
@@ -187,11 +201,14 @@ supabase/
   schema.sql             資料表、RPC、RLS policy
   migrations/            後續的資料庫變更
 scripts/
-  simulate.ts            情境模擬、月結算、CI 門檻、消融實驗
+  sim-core.ts            情境定義、單月模擬、獨立 checker、月結算
+  simulate.ts            模擬報告、CI 門檻、消融實驗
+  export-data.ts         匯出原始數據（CSV）
+  experiments/           各實驗的重現腳本
   stats.ts               統計函式（chi-square、Gini、Mann-Whitney U、CI）
   test-scheduler.ts      regression test
 docs/
-  experiments/           實驗紀錄（EXP-001～）
+  experiments/           實驗紀錄（EXP-001～）、analysis.ipynb、data/（原始數據）
   simulation-report.md   模擬報告（自動產生）
   screenshots/           介面截圖
 .github/workflows/       GitHub Actions（CI）

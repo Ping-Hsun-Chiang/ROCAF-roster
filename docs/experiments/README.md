@@ -10,14 +10,41 @@
 | [EXP-001](EXP-001-gray-fairness.md) | 灰色時段公平值 | ✅ 採用 | `2538f66` |
 | [EXP-002](EXP-002-jitter-unit.md) | Jitter 單位修正 | ✅ 採用 | `86ef9cc` |
 | [EXP-003](EXP-003-manpower-thresholds.md) | 建議人力門檻 | ✅ 採用（加入提醒） | `86ef9cc` |
-| [EXP-004](EXP-004-statistical-validation.md) | 以統計檢定驗證公平性（對照組） | ✅ 驗證通過，🔍 哨長負擔略高 < 2% | 見 git log |
+| [EXP-004](EXP-004-statistical-validation.md) | 以統計檢定驗證公平性（對照組） | ✅ 驗證通過，🔍 哨長負擔略高 < 2% | `510d162` |
 
-## 相關檔案
+## 重現實驗（Reproducibility）
 
-- [`../simulation-report.md`](../simulation-report.md)：最新的完整模擬報告（自動產生，每次執行會覆蓋）
-- [`results/`](results/)：各實驗的原始輸出（自動產生）
-- [`../../scripts/simulate.ts`](../../scripts/simulate.ts)：情境定義、獨立 checker、月結算
-- [`../../scripts/stats.ts`](../../scripts/stats.ts)：統計函式
+每份報告的數據都能用 repo 中的程式碼重新產生。所有亂數皆由 seed 決定，相同的程式碼在任何機器上都會得到相同的結果。
+
+| 實驗 | 程式碼 | 指令 | 輸出 |
+| --- | --- | --- | --- |
+| EXP-001 | [`exp-001-gray-fairness.ts`](../../scripts/experiments/exp-001-gray-fairness.ts) | `npm run experiment -- scripts/experiments/exp-001-gray-fairness.ts` | [`results/EXP-001.md`](results/EXP-001.md) |
+| EXP-002 | [`exp-002-jitter-unit.ts`](../../scripts/experiments/exp-002-jitter-unit.ts) | `npm run experiment -- scripts/experiments/exp-002-jitter-unit.ts` | [`results/EXP-002.md`](results/EXP-002.md) |
+| EXP-003 | [`exp-003-manpower-thresholds.ts`](../../scripts/experiments/exp-003-manpower-thresholds.ts) | `npm run experiment -- scripts/experiments/exp-003-manpower-thresholds.ts` | [`results/EXP-003.md`](results/EXP-003.md) |
+| EXP-004 | [`simulate.ts`](../../scripts/simulate.ts) | `npm run simulate`、`npm run simulate -- --ablation` | [`../simulation-report.md`](../simulation-report.md)、[`results/ablation.md`](results/ablation.md) |
+| 原始數據 | [`export-data.ts`](../../scripts/export-data.ts) | `npm run export-data` | [`data/`](data/)（CSV） |
+| 獨立分析 | [`analysis.ipynb`](analysis.ipynb) | 見 notebook 開頭 | 圖表、與 `scipy` 的交叉驗證 |
+
+所有腳本都接受 `--seeds N`（預設 30）。共用的情境定義、模擬與獨立 checker 在 [`scripts/sim-core.ts`](../../scripts/sim-core.ts)，
+統計函式在 [`scripts/stats.ts`](../../scripts/stats.ts)。
+
+### 獨立分析 notebook
+
+[`analysis.ipynb`](analysis.ipynb) 讀取 [`data/`](data/) 中每個 run、每個人的月結算原始數據，用 Python（`numpy`、`scipy`）
+**重新計算所有統計量**，不使用專案自己實作的 `stats.ts`，並與 `stats.ts` 的結果逐一比對。GitHub 可以直接顯示已執行的 notebook 與圖表。
+
+```bash
+python -m venv .venv
+.venv/Scripts/pip install -r docs/experiments/requirements.txt      # macOS/Linux：.venv/bin/pip
+.venv/Scripts/jupyter nbconvert --to notebook --execute --inplace docs/experiments/analysis.ipynb
+```
+
+### CI 自動驗證
+
+[GitHub Actions](../../.github/workflows/verify.yml) 每次 push 都會：
+
+1. 以 `npm run export-data` 重新產生原始數據，**必須與 repo 中的 CSV 完全相同**，證明數據確實來自目前的程式碼、沒有被手動修改。
+2. 執行 notebook。若 `stats.ts` 與 `scipy` 的結果不一致、或發現任何違規，notebook 中的 `assert` 會讓 CI 失敗。
 
 ## 撰寫規則
 

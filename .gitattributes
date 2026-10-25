@@ -1,0 +1,2 @@
+# 原始數據由程式產生，CI 會逐位元組比對，固定使用 LF
+docs/experiments/data/*.csv text eol=lf
