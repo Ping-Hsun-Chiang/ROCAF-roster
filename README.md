@@ -152,6 +152,13 @@ npm run test:scheduler          # regression test
 npm run experiment -- scripts/experiments/exp-001-gray-fairness.ts   # 重現單一實驗（原始數據 → docs/experiments/data/）
 ```
 
+執行 notebook 需要 Python 3.12：
+
+```bash
+pip install -r docs/experiments/requirements.txt
+jupyter nbconvert --to notebook --execute docs/experiments/EXP-001-gray-fairness.ipynb --output-dir /tmp
+```
+
 ## 系統架構
 
 ```mermaid
@@ -176,7 +183,7 @@ flowchart LR
 
 ## 架設與開發
 
-**需要：** Node.js 22 以上、一個免費的 [Supabase](https://supabase.com) 專案。
+**需要：** Node.js 22.6 以上（模擬與測試腳本使用 `--experimental-strip-types` 直接執行 TypeScript）、一個免費的 [Supabase](https://supabase.com) 專案。
 
 1. 到 Supabase 的 **SQL Editor** 執行 [`supabase/schema.sql`](supabase/schema.sql)。
 2. 到 **Authentication → Users** 建立登入帳號，並在 **Sign In / Providers** 關閉公開註冊。
@@ -198,9 +205,12 @@ components/
   RosterHistory.tsx      最近 7 天哨表紀錄
   MemberManager.tsx      人員名冊與當月統計
   AuthGate.tsx           登入畫面
+  Nav.tsx / Modal.tsx    導覽列、共用對話框
 lib/
   scheduler.ts           排哨演算法、驗證、人力檢核（pure TypeScript）
   db.ts                  Supabase 資料存取
+  supabase.ts            Supabase client
+  date.ts                本地時區日期工具
 supabase/
   schema.sql             資料表、RPC、RLS policy
   migrations/            後續的資料庫變更
@@ -211,7 +221,7 @@ scripts/
   stats.ts               統計函式（chi-square、Gini、Mann-Whitney U、CI）
   test-scheduler.ts      regression test
 docs/
-  experiments/           實驗紀錄（.md）、分析 notebook（.ipynb）、原始數據（data/）
+  experiments/           實驗紀錄（.md）、分析 notebook（.ipynb）、原始數據（data/）、notebook 共用函式（nbutils.py）
   simulation-report.md   模擬報告（自動產生）
   screenshots/           介面截圖
 .github/workflows/       GitHub Actions（CI）
